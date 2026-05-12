@@ -14,6 +14,8 @@
 #include <QHeaderView>
 #include <QPushButton>
 #include <QTabBar>
+#include <QStringListModel>
+#include <QRegularExpression>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -87,22 +89,11 @@ void MainWindow::setupUI() {
     connect(m_fileExplorer, &QTreeView::doubleClicked, this, &MainWindow::onFileDoubleClicked);
 }
 
-// void MainWindow::setupToolBar() {
-//
-//     QToolBar* toolbar = addToolBar("Main Toolbar");
-//
-//     QAction* runAction = new QAction("Run Senna", this);
-//
-//     connect(runAction, &QAction::triggered, this, &MainWindow::handleRunCompiler);
-//
-//     toolbar->addAction(runAction);
-// }
-
 void MainWindow::setupToolBar() {
     QToolBar* toolbar = addToolBar("Main Toolbar");
 
     QAction* saveAction = new QAction("Save", this);
-    saveAction->setShortcut(QKeySequence::Save); // Привязка Ctrl+S
+    saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveCurrentFile);
     toolbar->addAction(saveAction);
 
@@ -167,39 +158,34 @@ void MainWindow::applyDarkTheme() {
     this->setStyleSheet(
         "QMainWindow { background-color: #1e1e1e; }"
 
-        "QTreeView { "
+        // Files panel
+        "QTreeView { background-color: #252526; color: #cccccc; border: none; font-size: 13px; outline: none; }"
+        "QTreeView::item:selected { background-color: #37373d; color: #ffffff; }"
+        "QTreeView::item:hover { background-color: #2a2d2e; }"
+
+        // Auto-completion style
+        "QAbstractItemView { "
         "  background-color: #252526; "
         "  color: #cccccc; "
-        "  border: none; "
-        "  font-size: 13px; "
+        "  border: 1px solid #454545; "
+        "  selection-background-color: #37373d; "
         "  outline: none; "
         "}"
-        "QTreeView::item:selected { "
+        "QAbstractItemView::item { "
+        "  padding: 4px 8px; "
+        "}"
+        "QAbstractItemView::item:selected { "
         "  background-color: #37373d; "
         "  color: #ffffff; "
         "}"
-        "QTreeView::item:hover { "
-        "  background-color: #2a2d2e; "
-        "}"
 
+        // Tabs panel
         "QTabWidget::pane { border-top: 1px solid #333333; background-color: #1e1e1e; }"
         "QTabBar::tab { background: #2d2d2d; color: #969696; padding: 8px 12px; border-right: 1px solid #1e1e1e; min-width: 100px; }"
         "QTabBar::tab:selected { background: #1e1e1e; color: #ffffff; }"
 
-        "QPushButton#tabCloseButton { "
-        "  background: none; "
-        "  color: #969696; "
-        "  border: none; "
-        "  font-family: 'Arial'; "
-        "  font-size: 14px; "
-        "  font-weight: bold; "
-        "  padding-bottom: 2px; "
-        "}"
-        "QPushButton#tabCloseButton:hover { "
-        "  color: white; "
-        "  background-color: #454545; "
-        "  border-radius: 2px; "
-        "}"
+        "QPushButton#tabCloseButton { background: none; color: #969696; border: none; font-family: 'Arial'; font-size: 14px; font-weight: bold; padding-bottom: 2px; }"
+        "QPushButton#tabCloseButton:hover { color: white; background-color: #454545; border-radius: 2px; }"
 
         "QToolBar { background-color: #333333; border: none; padding: 5px; spacing: 10px; }"
         "QToolButton { color: white; background-color: #0e639c; border-radius: 3px; padding: 5px 15px; font-weight: bold; }"
@@ -215,16 +201,27 @@ void MainWindow::onFileDoubleClicked(const QModelIndex &index) {
     QString filePath = m_fileModel->filePath(index);
     if (QFileInfo(filePath).isDir()) return;
 
-    if (m_openEditors.contains(filePath)) {
-        m_editorTabs->setCurrentWidget(m_openEditors[filePath]);
-        return;
-    }
-
     QFile file(filePath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         CodeEditor* editor = new CodeEditor(this);
         editor->setPlainText(file.readAll());
         file.close();
+
+        QStringList keywords = {"print", "if", "else", "while", "func", "return", "for", "break"};
+        QCompleter* completer = new QCompleter(keywords, this);
+        completer->setCaseSensitivity(Qt::CaseSensitive);
+        editor->setCompleter(completer);
+
+        connect(editor, &QPlainTextEdit::textChanged, [editor, keywords]() {
+            QStringList dynamicWords = keywords;
+            QRegularExpression rx("\\b[a-zA-Z_][a-zA-Z0-9_]*\\b");
+            auto it = rx.globalMatch(editor->toPlainText());
+            while (it.hasNext()) dynamicWords << it.next().captured();
+            dynamicWords.removeDuplicates();
+
+            auto model = static_cast<QStringListModel*>(editor->completer()->model());
+            if (model) model->setStringList(dynamicWords);
+        });
 
         int tabIdx = m_editorTabs->addTab(editor, QFileInfo(filePath).fileName());
 
