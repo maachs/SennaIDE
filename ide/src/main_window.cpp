@@ -8,23 +8,29 @@
 #include <QVBoxLayout>
 #include <QFile>
 #include <QMessageBox>
+#include <QDir>
+#include <QMenu>
+#include <QInputDialog>
+#include <QHeaderView>
+#include <QPushButton>
+#include <QTabBar>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
-      m_codeEditor(new CodeEditor(this)),
-      m_projectTree(new QTreeWidget(this)),
+      m_fileExplorer(new QTreeView(this)),
+      m_fileModel(new QFileSystemModel(this)),
+      m_editorTabs(new QTabWidget(this)),
       m_outputLog(new QTextEdit(this)),
       m_compilerProcess(new QProcess(this))
 {
-    Q_ASSERT(m_codeEditor != nullptr);
     Q_ASSERT(m_outputLog != nullptr);
     Q_ASSERT(m_compilerProcess != nullptr);
 
     setupUI();
+    applyDarkTheme();
 
     connect(m_compilerProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &MainWindow::handleCompilerFinished);
-
     connect(m_compilerProcess, &QProcess::errorOccurred,
             this, &MainWindow::handleCompilerError);
 }
@@ -38,26 +44,47 @@ MainWindow::~MainWindow() {
 
 void MainWindow::setupUI() {
     m_outputLog->setReadOnly(true);
-    m_projectTree->setHeaderLabel("Project Explorer");
+
+    QString path = QDir::currentPath();
+    m_fileModel->setRootPath(path);
+    m_fileExplorer->setModel(m_fileModel);
+    m_fileExplorer->setRootIndex(m_fileModel->index(path));
+
+    for (int i = 1; i < 4; ++i) m_fileExplorer->hideColumn(i);
+    m_fileExplorer->header()->hide();
 
     QSplitter* hSplitter = new QSplitter(Qt::Horizontal, this);
-
     QSplitter* vSplitter = new QSplitter(Qt::Vertical, hSplitter);
 
-    hSplitter->addWidget(m_projectTree);
+    m_editorTabs->setTabsClosable(true);
+    m_editorTabs->setMovable(true);
+    m_editorTabs->setUsesScrollButtons(true);
+    connect(m_editorTabs, &QTabWidget::tabCloseRequested, [this](int index) {
+        QWidget* widget = m_editorTabs->widget(index);
+        QString filePath = m_openEditors.key(static_cast<CodeEditor*>(widget));
+        m_openEditors.remove(filePath);
+        m_editorTabs->removeTab(index);
+        delete widget;
+    });
 
-    vSplitter->addWidget(m_codeEditor);
+    hSplitter->addWidget(m_fileExplorer);
+    hSplitter->addWidget(vSplitter);
 
+    vSplitter->addWidget(m_editorTabs);
     vSplitter->addWidget(m_outputLog);
 
+    hSplitter->setStretchFactor(1, 1);
+    vSplitter->setStretchFactor(0, 1);
+
     setCentralWidget(hSplitter);
-
     hSplitter->setSizes({200, 800});
-    vSplitter->setSizes({600, 200});
 
-    resize(1024, 768);
-
+    resize(1200, 800);
     setupToolBar();
+
+    m_fileExplorer->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_fileExplorer, &QTreeView::customContextMenuRequested, this, &MainWindow::showExplorerContextMenu);
+    connect(m_fileExplorer, &QTreeView::doubleClicked, this, &MainWindow::onFileDoubleClicked);
 }
 
 void MainWindow::setupToolBar() {
@@ -72,24 +99,28 @@ void MainWindow::setupToolBar() {
 }
 
 void MainWindow::handleRunCompiler() {
+    CodeEditor* currentEditor = qobject_cast<CodeEditor*>(m_editorTabs->currentWidget());
+    if (!currentEditor) {
+        m_outputLog->append("[-] No file is open.");
+        return;
+    }
 
     m_outputLog->clear();
     m_outputLog->append("Starting SennaC compilation...");
 
-    QString tempFileName = "temp_source.sn";
-    QFile file(tempFileName);
+    QString currentPath = m_openEditors.key(currentEditor);
+    QFile file(currentPath);
 
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        m_outputLog->append("[-] OS Error: Cannot create temporary file.");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(currentEditor->toPlainText().toUtf8());
+        file.close();
+    } else {
+        m_outputLog->append("[-] OS Error: Cannot save file.");
         return;
     }
 
-    file.write(m_codeEditor->toPlainText().toUtf8());
-    file.close();
-
     QStringList arguments;
-    arguments << tempFileName << "--emit=ast";
-
+    arguments << currentPath << "--emit=ast";
     m_compilerProcess->start("./senna", arguments);
 }
 
@@ -124,5 +155,126 @@ void MainWindow::handleCompilerError(QProcess::ProcessError error) {
         default:
             m_outputLog->append("[-] OS Error: An unknown error occurred with the system call.");
             break;
+    }
+}
+
+void MainWindow::applyDarkTheme() {
+    this->setStyleSheet(
+        "QMainWindow { background-color: #1e1e1e; }"
+
+        "QTreeView { "
+        "  background-color: #252526; "
+        "  color: #cccccc; "
+        "  border: none; "
+        "  font-size: 13px; "
+        "  outline: none; "
+        "}"
+        "QTreeView::item:selected { "
+        "  background-color: #37373d; "
+        "  color: #ffffff; "
+        "}"
+        "QTreeView::item:hover { "
+        "  background-color: #2a2d2e; "
+        "}"
+
+        "QTabWidget::pane { border-top: 1px solid #333333; background-color: #1e1e1e; }"
+        "QTabBar::tab { background: #2d2d2d; color: #969696; padding: 8px 12px; border-right: 1px solid #1e1e1e; min-width: 100px; }"
+        "QTabBar::tab:selected { background: #1e1e1e; color: #ffffff; }"
+
+        "QPushButton#tabCloseButton { "
+        "  background: none; "
+        "  color: #969696; "
+        "  border: none; "
+        "  font-family: 'Arial'; "
+        "  font-size: 14px; "
+        "  font-weight: bold; "
+        "  padding-bottom: 2px; "
+        "}"
+        "QPushButton#tabCloseButton:hover { "
+        "  color: white; "
+        "  background-color: #454545; "
+        "  border-radius: 2px; "
+        "}"
+
+        "QToolBar { background-color: #333333; border: none; padding: 5px; spacing: 10px; }"
+        "QToolButton { color: white; background-color: #0e639c; border-radius: 3px; padding: 5px 15px; font-weight: bold; }"
+        "QToolButton:hover { background-color: #1177bb; }"
+
+        "QPlainTextEdit { background-color: #1e1e1e; color: #d4d4d4; border: none; font-family: 'Monospace'; }"
+        "QTextEdit { background-color: #1e1e1e; color: #858585; border-top: 1px solid #333333; }"
+        "QSplitter::handle { background-color: #333333; }"
+    );
+}
+
+void MainWindow::onFileDoubleClicked(const QModelIndex &index) {
+    QString filePath = m_fileModel->filePath(index);
+    if (QFileInfo(filePath).isDir()) return;
+
+    if (m_openEditors.contains(filePath)) {
+        m_editorTabs->setCurrentWidget(m_openEditors[filePath]);
+        return;
+    }
+
+    QFile file(filePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        CodeEditor* editor = new CodeEditor(this);
+        editor->setPlainText(file.readAll());
+        file.close();
+
+        int tabIdx = m_editorTabs->addTab(editor, QFileInfo(filePath).fileName());
+
+        QPushButton* closeBtn = new QPushButton("x", this);
+        closeBtn->setObjectName("tabCloseButton");
+
+        QTabBar* bar = m_editorTabs->findChild<QTabBar*>();
+        if (bar) {
+            bar->setTabButton(tabIdx, QTabBar::RightSide, closeBtn);
+        }
+
+        connect(closeBtn, &QPushButton::clicked, [this, editor]() {
+            int idx = m_editorTabs->indexOf(editor);
+            if (idx != -1) {
+                emit m_editorTabs->tabCloseRequested(idx);
+            }
+        });
+
+        m_editorTabs->setCurrentIndex(tabIdx);
+        m_openEditors[filePath] = editor;
+    }
+}
+
+void MainWindow::showExplorerContextMenu(const QPoint &pos) {
+    QMenu contextMenu(tr("Context menu"), this);
+    QAction actionNew("New File", this);
+    QAction actionDelete("Delete", this);
+
+    connect(&actionNew, &QAction::triggered, this, &MainWindow::createNewFile);
+    connect(&actionDelete, &QAction::triggered, this, &MainWindow::deleteSelectedFile);
+
+    contextMenu.addAction(&actionNew);
+    contextMenu.addAction(&actionDelete);
+    contextMenu.exec(m_fileExplorer->viewport()->mapToGlobal(pos));
+}
+
+void MainWindow::createNewFile() {
+    QModelIndex index = m_fileExplorer->currentIndex();
+    QString path = m_fileModel->filePath(index);
+    if (QFileInfo(path).isFile()) path = QFileInfo(path).absolutePath();
+
+    bool ok;
+    QString fileName = QInputDialog::getText(this, "New File", "Name:", QLineEdit::Normal, "new_file.sn", &ok);
+    if (ok && !fileName.isEmpty()) {
+        QFile file(path + "/" + fileName);
+        if (file.open(QIODevice::WriteOnly)) file.close();
+    }
+}
+
+void MainWindow::deleteSelectedFile() {
+    QModelIndex index = m_fileExplorer->currentIndex();
+    if (!index.isValid()) return;
+
+    QString path = m_fileModel->filePath(index);
+    if (QMessageBox::question(this, "Delete", "Are you sure you want to delete this file?") == QMessageBox::Yes) {
+        QFile(path).remove();
     }
 }
