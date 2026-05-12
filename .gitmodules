@@ -1,0 +1,3 @@
+[submodule "SennaCompiler"]
+	path = SennaCompiler
+	url = https://github.com/ELBEBACK/SennaCompiler.git
