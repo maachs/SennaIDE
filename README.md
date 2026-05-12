@@ -1,1 +1,1 @@
-# SennaIDA
+# SennaIDE
