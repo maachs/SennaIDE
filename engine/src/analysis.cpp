@@ -1,4 +1,4 @@
-#include "analysis_worker.hpp"
+#include "analysis.hpp"
 #include "visualizer.hpp"
 #include "semantic.hpp"
 #include <cstdio>
