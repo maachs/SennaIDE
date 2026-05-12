@@ -26,6 +26,7 @@ private slots:
     void showExplorerContextMenu(const QPoint &pos);
     void createNewFile();
     void deleteSelectedFile();
+    void saveCurrentFile();
 
 private:
     QTreeView* m_fileExplorer;

@@ -87,37 +87,42 @@ void MainWindow::setupUI() {
     connect(m_fileExplorer, &QTreeView::doubleClicked, this, &MainWindow::onFileDoubleClicked);
 }
 
-void MainWindow::setupToolBar() {
+// void MainWindow::setupToolBar() {
+//
+//     QToolBar* toolbar = addToolBar("Main Toolbar");
+//
+//     QAction* runAction = new QAction("Run Senna", this);
+//
+//     connect(runAction, &QAction::triggered, this, &MainWindow::handleRunCompiler);
+//
+//     toolbar->addAction(runAction);
+// }
 
+void MainWindow::setupToolBar() {
     QToolBar* toolbar = addToolBar("Main Toolbar");
 
+    QAction* saveAction = new QAction("Save", this);
+    saveAction->setShortcut(QKeySequence::Save); // Привязка Ctrl+S
+    connect(saveAction, &QAction::triggered, this, &MainWindow::saveCurrentFile);
+    toolbar->addAction(saveAction);
+
+    toolbar->addSeparator();
+
     QAction* runAction = new QAction("Run Senna", this);
-
     connect(runAction, &QAction::triggered, this, &MainWindow::handleRunCompiler);
-
     toolbar->addAction(runAction);
 }
 
 void MainWindow::handleRunCompiler() {
-    CodeEditor* currentEditor = qobject_cast<CodeEditor*>(m_editorTabs->currentWidget());
-    if (!currentEditor) {
-        m_outputLog->append("[-] No file is open.");
-        return;
-    }
+    saveCurrentFile();
 
-    m_outputLog->clear();
-    m_outputLog->append("Starting SennaC compilation...");
+    CodeEditor* currentEditor = qobject_cast<CodeEditor*>(m_editorTabs->currentWidget());
+    if (!currentEditor) return;
 
     QString currentPath = m_openEditors.key(currentEditor);
-    QFile file(currentPath);
 
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.write(currentEditor->toPlainText().toUtf8());
-        file.close();
-    } else {
-        m_outputLog->append("[-] OS Error: Cannot save file.");
-        return;
-    }
+    m_outputLog->clear();
+    m_outputLog->append("Running compiler for: " + currentPath);
 
     QStringList arguments;
     arguments << currentPath << "--emit=ast";
@@ -276,5 +281,22 @@ void MainWindow::deleteSelectedFile() {
     QString path = m_fileModel->filePath(index);
     if (QMessageBox::question(this, "Delete", "Are you sure you want to delete this file?") == QMessageBox::Yes) {
         QFile(path).remove();
+    }
+}
+
+void MainWindow::saveCurrentFile() {
+    CodeEditor* currentEditor = qobject_cast<CodeEditor*>(m_editorTabs->currentWidget());
+    if (!currentEditor) return;
+
+    QString filePath = m_openEditors.key(currentEditor);
+    if (filePath.isEmpty()) return;
+
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(currentEditor->toPlainText().toUtf8());
+        file.close();
+        m_outputLog->append("[+] Saved: " + QFileInfo(filePath).fileName());
+    } else {
+        m_outputLog->append("[-] OS Error: Failed to save " + filePath);
     }
 }
