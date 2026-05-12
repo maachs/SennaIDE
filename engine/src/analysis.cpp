@@ -5,7 +5,7 @@
 #include <cassert>
 
 extern FILE* yyin;
-extern int yyparse();
+extern int yyparse(std::vector<std::string>& syntax_errors);
 extern std::unique_ptr<BlockNode> rootBlock;
 
 AnalysisWorker::AnalysisWorker(DataBridge& bridge)
@@ -50,7 +50,7 @@ void AnalysisWorker::loop() {
 
 void AnalysisWorker::perform_analysis(const std::string& filepath) {
     AnalysisResult local_result;
-    syntax_errors.clear();
+    std::vector<std::string> syntax_errors;
 
     FILE* file = fopen(filepath.c_str(), "r");
     if (!file) {
@@ -62,7 +62,7 @@ void AnalysisWorker::perform_analysis(const std::string& filepath) {
     yyin = file;
     rootBlock = std::make_unique<BlockNode>();
 
-    if (yyparse() == 0) {
+    if (yyparse(syntax_errors) == 0) {
         SemanticAnalyzer semantic_checker;
         rootBlock->accept(semantic_checker);
 
