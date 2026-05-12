@@ -50,6 +50,7 @@ void AnalysisWorker::loop() {
 
 void AnalysisWorker::perform_analysis(const std::string& filepath) {
     AnalysisResult local_result;
+    syntax_errors.clear();
 
     FILE* file = fopen(filepath.c_str(), "r");
     if (!file) {
@@ -75,10 +76,12 @@ void AnalysisWorker::perform_analysis(const std::string& filepath) {
                 "output/png/ast_output.png"
             );
         } else {
-            local_result.errors.push_back("Semantic error occurred.");
+            local_result.success = false;
+            local_result.errors = semantic_checker.get_errors();
         }
     } else {
-        local_result.errors.push_back("Syntax error occurred during parsing.");
+        local_result.success = false;
+        local_result.errors = syntax_errors;
     }
 
     fclose(file);
