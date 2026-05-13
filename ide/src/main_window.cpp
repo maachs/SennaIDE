@@ -130,7 +130,7 @@ void MainWindow::handleRunCompiler() {
     QString fullCommand = QString(
         "./SennaCompiler/build/src/senna %1 --emit=llvm && "
         "clang -O0 output/out.ll -o program && "
-        "./program"
+        "echo '' && ./program"
     ).arg(currentPath);
 
     m_compilerProcess->start("/bin/sh", QStringList() << "-c" << fullCommand);
@@ -138,21 +138,28 @@ void MainWindow::handleRunCompiler() {
 
 void MainWindow::handleCompilerFinished(int exitCode) {
     QString stdOut = m_compilerProcess->readAllStandardOutput();
-
     QString stdErr = m_compilerProcess->readAllStandardError();
 
-    if (!stdOut.isEmpty()) {
-        m_outputLog->append("Output:\n" + stdOut);
+    QStringList lines = stdOut.split('\n');
+
+    for (const QString& line : lines) {
+        if (line.trimmed().isEmpty()) continue;
+
+        if (line.startsWith("[+]") || line.startsWith("[*]")) {
+            m_outputLog->append("<span style='color: #6a9955;'>" + line + "</span>");
+        } else {
+            m_outputLog->append("<b style='color: #ffffff; font-size: 14px;'>" + line + "</b>");
+        }
     }
 
     if (!stdErr.isEmpty()) {
-        m_outputLog->append("Errors:\n" + stdErr);
+        m_outputLog->append("<span style='color: #f48771;'>Errors:</span>\n" + stdErr);
     }
 
     if (exitCode == 0) {
-        m_outputLog->append("[+] Finished successfully.");
+        m_outputLog->append("<span style='color: #6a9955;'>[+] Finished successfully.</span>");
     } else {
-        m_outputLog->append("[-] Finished with code " + QString::number(exitCode));
+        m_outputLog->append("<span style='color: #f48771;'>[-] Finished with code " + QString::number(exitCode) + "</span>");
     }
 }
 
