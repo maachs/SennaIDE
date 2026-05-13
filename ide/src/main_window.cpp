@@ -105,19 +105,35 @@ void MainWindow::setupToolBar() {
 }
 
 void MainWindow::handleRunCompiler() {
-    saveCurrentFile();
-
     CodeEditor* currentEditor = qobject_cast<CodeEditor*>(m_editorTabs->currentWidget());
-    if (!currentEditor) return;
 
-    QString currentPath = m_openEditors.key(currentEditor);
+    if (!currentEditor) {
+        m_outputLog->append("[-] No file is open.");
+        return;
+    }
 
     m_outputLog->clear();
-    m_outputLog->append("Running compiler for: " + currentPath);
+    m_outputLog->append("Starting full compilation and execution...");
 
-    QStringList arguments;
-    arguments << currentPath << "--emit=ast";
-    m_compilerProcess->start("./senna", arguments);
+    QString currentPath = m_openEditors.key(currentEditor);
+    if (currentPath.isEmpty()) return;
+
+    QFile file(currentPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(currentEditor->toPlainText().toUtf8());
+        file.close();
+    } else {
+        m_outputLog->append("[-] OS Error: Cannot save file.");
+        return;
+    }
+
+    QString fullCommand = QString(
+        "./SennaCompiler/build/src/senna %1 --emit=llvm && "
+        "clang -O0 output/out.ll -o program && "
+        "./program"
+    ).arg(currentPath);
+
+    m_compilerProcess->start("/bin/sh", QStringList() << "-c" << fullCommand);
 }
 
 void MainWindow::handleCompilerFinished(int exitCode) {

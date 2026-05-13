@@ -23,16 +23,18 @@ void CodeEditor::setCompleter(QCompleter *completer) {
     m_completer->setCaseSensitivity(Qt::CaseSensitive);
 
     if (m_completer->popup()) {
+        m_completer->popup()->setFont(this->font());
         m_completer->popup()->setStyleSheet(
             "QAbstractItemView { "
             "  background-color: #252526; "
             "  color: #cccccc; "
             "  border: 1px solid #454545; "
             "  selection-background-color: #37373d; "
+            "  font-size: 14px; "
             "  outline: none; "
             "}"
             "QAbstractItemView::item { "
-            "  padding: 4px 8px; "
+            "  padding: 6px 12px; "
             "}"
             "QAbstractItemView::item:selected { "
             "  background-color: #37373d; "
@@ -94,7 +96,11 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) {
     }
 
     QRect cr = cursorRect();
-    cr.setWidth(m_completer->popup()->sizeHintForColumn(0) + m_completer->popup()->verticalScrollBar()->sizeHint().width());
+
+    int popupWidth = m_completer->popup()->sizeHintForColumn(0) +
+                     m_completer->popup()->verticalScrollBar()->sizeHint().width();
+
+    cr.setWidth(qMax(popupWidth, 250));
     m_completer->complete(cr);
 }
 
@@ -104,7 +110,7 @@ void CodeEditor::focusInEvent(QFocusEvent *e) {
 }
 
 void CodeEditor::setupEditor() {
-    QFont font("Monospace", 16);
+    QFont font("Monospace", 14);
     this->setFont(font);
     this->setTabStopDistance(QFontMetrics(font).horizontalAdvance(' ') * 4);
 }

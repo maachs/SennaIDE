@@ -1,5 +1,5 @@
 #include "visualizer.hpp"
-#include "dot_print.hpp"
+#include "ast_print.hpp"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -15,7 +15,7 @@ bool Visualizer::generate_ast_image(BlockNode* root, const std::string& out_dot,
         return false;
     }
 
-    GraphDump dumper(out_file);
+    ASTPrint dumper(out_file);
     dumper.header_write();
     root->accept(dumper);
     dumper.footer_write();

@@ -2,26 +2,22 @@ cmake_minimum_required(VERSION 3.10)
 project(SennaStudio)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
-find_package(FLEX REQUIRED)
-find_package(BISON REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
-find_package(Qt5 COMPONENTS Svg REQUIRED)
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/SennaCompiler ${CMAKE_CURRENT_BINARY_DIR}/compiler_build)
+add_subdirectory(SennaCompiler compiler_build)
 
 include_directories(
     engine/include
     ide/include
-    SennaCompiler/include
-    SennaCompiler/src/graph_dump
 )
 
-add_executable(senna_ide
+set(IDE_SOURCES
     ide/src/main.cpp
     ide/src/main_window.cpp
     ide/src/code_editor.cpp
@@ -29,7 +25,9 @@ add_executable(senna_ide
     engine/src/analysis.cpp
     engine/src/data_bridge.cpp
     engine/src/visualizer.cpp
+)
 
+set(IDE_HEADERS
     ide/include/main_window.hpp
     ide/include/code_editor.hpp
     ide/include/project_tree.hpp
@@ -38,8 +36,12 @@ add_executable(senna_ide
     engine/include/visualizer.hpp
 )
 
+add_executable(senna_ide ${IDE_SOURCES} ${IDE_HEADERS})
+
 target_link_libraries(senna_ide
+    PRIVATE
     senna_compiler
+    Qt5::Widgets
     Qt5::Svg
     pthread
 )
