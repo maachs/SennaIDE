@@ -128,7 +128,7 @@ void MainWindow::handleRunCompiler() {
     }
 
     QString fullCommand = QString(
-        "./SennaCompiler/build/src/senna %1 --emit=llvm && "
+        "./build/compiler_build/src/senna %1 --emit=llvm && "
         "clang -O0 output/out.ll -o program && "
         "echo '' && ./program"
     ).arg(currentPath);
